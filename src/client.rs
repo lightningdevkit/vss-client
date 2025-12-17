@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::default::Default;
 use std::sync::Arc;
 
+use log::trace;
+
 use crate::error::VssError;
 use crate::headers::{get_headermap, FixedHeaders, VssHeaderProvider};
 use crate::types::{
@@ -12,6 +14,7 @@ use crate::types::{
 	ListKeyVersionsRequest, ListKeyVersionsResponse, PutObjectRequest, PutObjectResponse,
 };
 use crate::util::retry::{retry, RetryPolicy};
+use crate::util::KeyValueVecKeyPrinter;
 
 const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
 const DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -77,7 +80,9 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	pub async fn get_object(
 		&self, request: &GetObjectRequest,
 	) -> Result<GetObjectResponse, VssError> {
-		retry(
+		let request_id: u64 = rand::random();
+		trace!("Sending GetObjectRequest {} for key {}.", request_id, request.key);
+		let res = retry(
 			|| async {
 				let url = format!("{}/getObject", self.base_url);
 				self.post_request(request, &url).await.and_then(|response: GetObjectResponse| {
@@ -92,7 +97,11 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 			},
 			&self.retry_policy,
 		)
-		.await
+		.await;
+		if let Err(ref e) = res {
+			trace!("GetObjectRequest {} failed: {}", request_id, e);
+		}
+		res
 	}
 
 	/// Writes multiple [`PutObjectRequest::transaction_items`] as part of a single transaction.
@@ -102,14 +111,25 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	pub async fn put_object(
 		&self, request: &PutObjectRequest,
 	) -> Result<PutObjectResponse, VssError> {
-		retry(
+		let request_id: u64 = rand::random();
+		trace!(
+			"Sending PutObjectRequest {} for transaction_items {} and delete_items {}.",
+			request_id,
+			KeyValueVecKeyPrinter(&request.transaction_items),
+			KeyValueVecKeyPrinter(&request.delete_items),
+		);
+		let res = retry(
 			|| async {
 				let url = format!("{}/putObjects", self.base_url);
 				self.post_request(request, &url).await
 			},
 			&self.retry_policy,
 		)
-		.await
+		.await;
+		if let Err(ref e) = res {
+			trace!("PutObjectRequest {} failed: {}", request_id, e);
+		}
+		res
 	}
 
 	/// Deletes the given `key` and `value` in `request`.
@@ -118,14 +138,24 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	pub async fn delete_object(
 		&self, request: &DeleteObjectRequest,
 	) -> Result<DeleteObjectResponse, VssError> {
-		retry(
+		let request_id: u64 = rand::random();
+		trace!(
+			"Sending DeleteObjectRequest {} for key {:?}",
+			request_id,
+			request.key_value.as_ref().map(|t| &t.key)
+		);
+		let res = retry(
 			|| async {
 				let url = format!("{}/deleteObject", self.base_url);
 				self.post_request(request, &url).await
 			},
 			&self.retry_policy,
 		)
-		.await
+		.await;
+		if let Err(ref e) = res {
+			trace!("DeleteObjectRequest {} failed: {}", request_id, e);
+		}
+		res
 	}
 
 	/// Lists keys and their corresponding version for a given [`ListKeyVersionsRequest::store_id`].
@@ -134,14 +164,26 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	pub async fn list_key_versions(
 		&self, request: &ListKeyVersionsRequest,
 	) -> Result<ListKeyVersionsResponse, VssError> {
-		retry(
+		let request_id: u64 = rand::random();
+		trace!(
+			"Sending ListKeyVersionsRequest {} for key_prefix {:?}, page_size {:?}, page_token {:?}",
+			request_id,
+			request.key_prefix,
+			request.page_size,
+			request.page_token
+		);
+		let res = retry(
 			|| async {
 				let url = format!("{}/listKeyVersions", self.base_url);
 				self.post_request(request, &url).await
 			},
 			&self.retry_policy,
 		)
-		.await
+		.await;
+		if let Err(ref e) = res {
+			trace!("ListKeyVersionsRequest {} failed: {}", request_id, e);
+		}
+		res
 	}
 
 	async fn post_request<Rq: Message, Rs: Message + Default>(

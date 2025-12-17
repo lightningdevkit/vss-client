@@ -4,6 +4,8 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::time::Duration;
 
+use log::trace;
+
 /// A function that performs and retries the given operation according to a retry policy.
 ///
 /// **Caution**: A retry policy without the number of attempts capped by [`MaxAttemptsRetryPolicy`]
@@ -69,6 +71,12 @@ where
 					accumulated_delay,
 					error: &err,
 				}) {
+					trace!(
+						"Operation failed on attempt {}, retrying in {}ms: {}",
+						attempts_made,
+						delay.as_millis(),
+						err
+					);
 					tokio::time::sleep(delay).await;
 					accumulated_delay += delay;
 				} else {
