@@ -1,3 +1,13 @@
+# 0.4.1 - Jan 9, 2026
+
+## Features and API updates
+- Add `trace`-level logging via the `log` facade (#51).
+
+In total, this release features 7 files changed, 99 insertions, 9 deletions from 3 authors in alphabetical order:
+- Andrei
+- Elias Rohrer
+- tankyleo
+
 # 0.4.0 - Nov 11, 2025
 
 ## Crate Metadata
