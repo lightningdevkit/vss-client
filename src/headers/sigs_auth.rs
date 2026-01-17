@@ -57,8 +57,8 @@ impl SigsAuthProvider {
 	/// This provides an incredibly simple authentication scheme and allows the server to ensure
 	/// data for separate clients is kept separate, without any application-specific logic.
 	///
-	/// In addition to the automatically-added `Authentication` header, any headers provided in
-	/// `default_headers` (except an `Authentication` header) will be added to the headers list.
+	/// In addition to the automatically-added `Authorization` header, any headers provided in
+	/// `default_headers` (except an `Authorization` header) will be added to the headers list.
 	pub fn new(key: SecretKey, default_headers: HashMap<String, String>) -> Self {
 		SigsAuthProvider { secp_ctx: Secp256k1::signing_only(), key, default_headers }
 	}
