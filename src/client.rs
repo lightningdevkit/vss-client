@@ -202,7 +202,8 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 			.with_headers(headers)
 			.with_body(request_body)
 			.with_timeout(DEFAULT_TIMEOUT_SECS)
-			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE))
+			.with_pipelining();
 
 		let response = self.client.send_async(http_request).await?;
 
