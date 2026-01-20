@@ -1,6 +1,5 @@
+use bitreq::Client;
 use prost::Message;
-use reqwest::header::CONTENT_TYPE;
-use reqwest::Client;
 use std::collections::HashMap;
 use std::default::Default;
 use std::sync::Arc;
@@ -8,7 +7,7 @@ use std::sync::Arc;
 use log::trace;
 
 use crate::error::VssError;
-use crate::headers::{get_headermap, FixedHeaders, VssHeaderProvider};
+use crate::headers::{FixedHeaders, VssHeaderProvider};
 use crate::types::{
 	DeleteObjectRequest, DeleteObjectResponse, GetObjectRequest, GetObjectResponse,
 	ListKeyVersionsRequest, ListKeyVersionsResponse, PutObjectRequest, PutObjectResponse,
@@ -17,7 +16,10 @@ use crate::util::retry::{retry, RetryPolicy};
 use crate::util::KeyValueVecKeyPrinter;
 
 const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
-const DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const CONTENT_TYPE: &str = "content-type";
+const DEFAULT_TIMEOUT_SECS: u64 = 10;
+const MAX_RESPONSE_BODY_SIZE: usize = 1024 * 1024 * 1024; // 1GB
+const DEFAULT_CLIENT_CAPACITY: usize = 10;
 
 /// Thin-client to access a hosted instance of Versioned Storage Service (VSS).
 /// The provided [`VssClient`] API is minimalistic and is congruent to the VSS server-side API.
@@ -35,11 +37,11 @@ where
 impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	/// Constructs a [`VssClient`] using `base_url` as the VSS server endpoint.
 	pub fn new(base_url: String, retry_policy: R) -> Self {
-		let client = build_client();
+		let client = Client::new(DEFAULT_CLIENT_CAPACITY);
 		Self::from_client(base_url, client, retry_policy)
 	}
 
-	/// Constructs a [`VssClient`] from a given [`reqwest::Client`], using `base_url` as the VSS server endpoint.
+	/// Constructs a [`VssClient`] from a given [`bitreq::Client`], using `base_url` as the VSS server endpoint.
 	pub fn from_client(base_url: String, client: Client, retry_policy: R) -> Self {
 		Self {
 			base_url,
@@ -49,7 +51,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		}
 	}
 
-	/// Constructs a [`VssClient`] from a given [`reqwest::Client`], using `base_url` as the VSS server endpoint.
+	/// Constructs a [`VssClient`] from a given [`bitreq::Client`], using `base_url` as the VSS server endpoint.
 	///
 	/// HTTP headers will be provided by the given `header_provider`.
 	pub fn from_client_and_headers(
@@ -65,7 +67,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	pub fn new_with_headers(
 		base_url: String, retry_policy: R, header_provider: Arc<dyn VssHeaderProvider>,
 	) -> Self {
-		let client = build_client();
+		let client = Client::new(DEFAULT_CLIENT_CAPACITY);
 		Self { base_url, client, retry_policy, header_provider }
 	}
 
@@ -85,15 +87,17 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		let res = retry(
 			|| async {
 				let url = format!("{}/getObject", self.base_url);
-				self.post_request(request, &url).await.and_then(|response: GetObjectResponse| {
-					if response.value.is_none() {
-						Err(VssError::InternalServerError(
-							"VSS Server API Violation, expected value in GetObjectResponse but found none".to_string(),
-						))
-					} else {
-						Ok(response)
-					}
-				})
+				self.post_request(request, &url, true).await.and_then(
+					|response: GetObjectResponse| {
+						if response.value.is_none() {
+							Err(VssError::InternalServerError(
+								"VSS Server API Violation, expected value in GetObjectResponse but found none".to_string(),
+							))
+						} else {
+							Ok(response)
+						}
+					},
+				)
 			},
 			&self.retry_policy,
 		)
@@ -121,7 +125,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		let res = retry(
 			|| async {
 				let url = format!("{}/putObjects", self.base_url);
-				self.post_request(request, &url).await
+				self.post_request(request, &url, false).await
 			},
 			&self.retry_policy,
 		)
@@ -147,7 +151,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		let res = retry(
 			|| async {
 				let url = format!("{}/deleteObject", self.base_url);
-				self.post_request(request, &url).await
+				self.post_request(request, &url, true).await
 			},
 			&self.retry_policy,
 		)
@@ -175,7 +179,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		let res = retry(
 			|| async {
 				let url = format!("{}/listKeyVersions", self.base_url);
-				self.post_request(request, &url).await
+				self.post_request(request, &url, true).await
 			},
 			&self.retry_policy,
 		)
@@ -187,40 +191,36 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 	}
 
 	async fn post_request<Rq: Message, Rs: Message + Default>(
-		&self, request: &Rq, url: &str,
+		&self, request: &Rq, url: &str, enable_pipelining: bool,
 	) -> Result<Rs, VssError> {
 		let request_body = request.encode_to_vec();
-		let headermap = self
+		let headers = self
 			.header_provider
 			.get_headers(&request_body)
 			.await
-			.and_then(|h| get_headermap(&h))
 			.map_err(|e| VssError::AuthError(e.to_string()))?;
-		let response_raw = self
-			.client
-			.post(url)
-			.header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
-			.headers(headermap)
-			.body(request_body)
-			.send()
-			.await?;
-		let status = response_raw.status();
-		let payload = response_raw.bytes().await?;
 
-		if status.is_success() {
+		let mut http_request = bitreq::post(url)
+			.with_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
+			.with_headers(headers)
+			.with_body(request_body)
+			.with_timeout(DEFAULT_TIMEOUT_SECS)
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
+
+		if enable_pipelining {
+			http_request = http_request.with_pipelining();
+		}
+
+		let response = self.client.send_async(http_request).await?;
+
+		let status_code = response.status_code;
+		let payload = response.into_bytes();
+
+		if (200..300).contains(&status_code) {
 			let response = Rs::decode(&payload[..])?;
 			Ok(response)
 		} else {
-			Err(VssError::new(status, payload))
+			Err(VssError::new(status_code, payload))
 		}
 	}
-}
-
-fn build_client() -> Client {
-	Client::builder()
-		.timeout(DEFAULT_TIMEOUT)
-		.connect_timeout(DEFAULT_TIMEOUT)
-		.read_timeout(DEFAULT_TIMEOUT)
-		.build()
-		.unwrap()
 }

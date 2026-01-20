@@ -15,20 +15,20 @@ build = "build.rs"
 
 [features]
 default = ["lnurl-auth", "sigs-auth"]
-lnurl-auth = ["dep:bitcoin", "dep:url", "dep:serde", "dep:serde_json", "reqwest/json"]
+lnurl-auth = ["dep:bitcoin", "dep:url", "dep:serde", "dep:serde_json"]
 sigs-auth = ["dep:bitcoin"]
 
 [dependencies]
 prost = "0.11.6"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+bitreq = { version = "0.3", default-features = false, features = ["async-https"] }
 tokio = { version = "1", default-features = false, features = ["time"] }
 rand = "0.8.5"
 async-trait = "0.1.77"
 bitcoin = { version = "0.32.2", default-features = false, features = ["std", "rand-std"], optional = true }
-url = { version = "2.5.0", default-features = false, optional = true }
-base64 = { version = "0.22", default-features = false}
+url = { version = "2.5.0", default-features = false, optional = true, features = ["std"] }
+base64 = { version = "0.22", default-features = false, features = ["std"]}
 serde = { version = "1.0.196", default-features = false, features = ["serde_derive"], optional = true }
-serde_json = { version = "1.0.113", default-features = false, optional = true }
+serde_json = { version = "1.0.113", default-features = false, features = ["std"], optional = true }
 
 bitcoin_hashes = "0.14.0"
 chacha20-poly1305 = "0.1.2"
@@ -36,7 +36,7 @@ log = { version = "0.4.29", default-features = false, features = ["std"]}
 
 [target.'cfg(genproto)'.build-dependencies]
 prost-build = { version = "0.11.3" }
-reqwest =  { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
+bitreq = { version = "0.3", default-features = false, features = ["std", "https"] }
 
 [dev-dependencies]
 mockito = "0.28.0"
