@@ -1,6 +1,8 @@
 #[cfg(genproto)]
 extern crate prost_build;
 #[cfg(genproto)]
+use std::io::Write;
+#[cfg(genproto)]
 use std::{env, fs, fs::File, path::Path};
 
 /// To generate updated proto objects:
@@ -25,9 +27,9 @@ fn generate_protos() {
 
 #[cfg(genproto)]
 fn download_file(url: &str, save_to: &str) -> Result<(), Box<dyn std::error::Error>> {
-	let mut response = reqwest::blocking::get(url)?;
+	let response = bitreq::get(url).send()?;
 	fs::create_dir_all(Path::new(save_to).parent().unwrap())?;
 	let mut out_file = File::create(save_to)?;
-	response.copy_to(&mut out_file)?;
+	out_file.write_all(&response.into_bytes())?;
 	Ok(())
 }
