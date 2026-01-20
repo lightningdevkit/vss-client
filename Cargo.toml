@@ -2,7 +2,7 @@
 name = "vss-client-ng"
 version = "0.4.1"
 authors = ["Leo Nash <hello@leonash.net>", "Elias Rohrer <dev@tnull.de>"]
-rust-version = "1.75.0"
+rust-version = "1.85.0"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 homepage = "https://lightningdevkit.org/"
