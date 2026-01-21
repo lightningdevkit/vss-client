@@ -130,13 +130,14 @@ impl LnurlAuthToJwtProvider {
 		parse_jwt_token(untrusted_token)
 	}
 
-	async fn get_jwt_token(&self, force_refresh: bool) -> Result<String, VssHeaderProviderError> {
-		let cached_token_str = if force_refresh {
-			None
-		} else {
-			let jwt_token = self.cached_jwt_token.read().unwrap();
-			jwt_token.as_ref().filter(|t| !t.is_expired()).map(|t| t.token_str.clone())
-		};
+	async fn get_jwt_token(&self) -> Result<String, VssHeaderProviderError> {
+		let cached_token_str = self
+			.cached_jwt_token
+			.read()
+			.unwrap()
+			.as_ref()
+			.filter(|t| !t.is_expired())
+			.map(|t| t.token_str.clone());
 		if let Some(token_str) = cached_token_str {
 			Ok(token_str)
 		} else {
@@ -152,7 +153,7 @@ impl VssHeaderProvider for LnurlAuthToJwtProvider {
 	async fn get_headers(
 		&self, _request: &[u8],
 	) -> Result<HashMap<String, String>, VssHeaderProviderError> {
-		let jwt_token = self.get_jwt_token(false).await?;
+		let jwt_token = self.get_jwt_token().await?;
 		let mut headers = self.default_headers.clone();
 		headers.insert(AUTHORIZATION.to_string(), format!("Bearer {}", jwt_token));
 		Ok(headers)
