@@ -17,7 +17,7 @@ use crate::util::KeyValueVecKeyPrinter;
 
 const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
-const MAX_RESPONSE_BODY_SIZE: usize = 500 * 1024 * 1024; // 500 MiB
+const MAX_RESPONSE_BODY_SIZE: usize = 1024 * 1024 * 1024; // 1GB
 const DEFAULT_CLIENT_CAPACITY: usize = 10;
 
 /// Thin-client to access a hosted instance of Versioned Storage Service (VSS).
