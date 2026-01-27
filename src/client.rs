@@ -16,6 +16,7 @@ use crate::util::retry::{retry, RetryPolicy};
 use crate::util::KeyValueVecKeyPrinter;
 
 const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
+const CONTENT_TYPE: &str = "content-type";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const MAX_RESPONSE_BODY_SIZE: usize = 1024 * 1024 * 1024; // 1GB
 const DEFAULT_CLIENT_CAPACITY: usize = 10;
@@ -198,7 +199,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 			.map_err(|e| VssError::AuthError(e.to_string()))?;
 
 		let http_request = bitreq::post(url)
-			.with_header("content-type", APPLICATION_OCTET_STREAM)
+			.with_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.with_headers(headers)
 			.with_body(request_body)
 			.with_timeout(DEFAULT_TIMEOUT_SECS)
