@@ -26,6 +26,8 @@ const SIG_QUERY_PARAM: &str = "sig";
 const KEY_QUERY_PARAM: &str = "key";
 // The authorization header name.
 const AUTHORIZATION: &str = "Authorization";
+// The maximum body size we allow for requests.
+const MAX_RESPONSE_BODY_SIZE: usize = 16 * 1024 * 1024; // 16 KB
 
 #[derive(Debug, Clone)]
 struct JwtToken {
@@ -87,7 +89,8 @@ impl LnurlAuthToJwtProvider {
 		// Fetch the LNURL.
 		let lnurl_request = bitreq::get(&self.url)
 			.with_headers(self.default_headers.clone())
-			.with_timeout(DEFAULT_TIMEOUT_SECS);
+			.with_timeout(DEFAULT_TIMEOUT_SECS)
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
 		let lnurl_response =
 			lnurl_request.send_async().await.map_err(VssHeaderProviderError::from)?;
 		let lnurl_str = String::from_utf8(lnurl_response.into_bytes()).map_err(|e| {
@@ -100,7 +103,8 @@ impl LnurlAuthToJwtProvider {
 		let signed_lnurl = sign_lnurl(&self.engine, &self.parent_key, &lnurl_str)?;
 		let auth_request = bitreq::get(&signed_lnurl)
 			.with_headers(self.default_headers.clone())
-			.with_timeout(DEFAULT_TIMEOUT_SECS);
+			.with_timeout(DEFAULT_TIMEOUT_SECS)
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
 		let auth_response =
 			auth_request.send_async().await.map_err(VssHeaderProviderError::from)?;
 		let lnurl_auth_response: LnurlAuthResponse =
