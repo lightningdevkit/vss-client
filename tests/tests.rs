@@ -3,7 +3,6 @@ mod tests {
 	use async_trait::async_trait;
 	use mockito::{self, Matcher};
 	use prost::Message;
-	use reqwest::header::CONTENT_TYPE;
 	use std::collections::HashMap;
 	use std::sync::Arc;
 	use std::time::Duration;
@@ -20,7 +19,8 @@ mod tests {
 	};
 	use vss_client_ng::util::retry::{ExponentialBackoffRetryPolicy, RetryPolicy};
 
-	const APPLICATION_OCTET_STREAM: &'static str = "application/octet-stream";
+	const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
+	const CONTENT_TYPE: &str = "content-type";
 
 	const GET_OBJECT_ENDPOINT: &'static str = "/getObject";
 	const PUT_OBJECT_ENDPOINT: &'static str = "/putObjects";
@@ -41,7 +41,7 @@ mod tests {
 
 		// Register the mock endpoint with the mockito server.
 		let mock_server = mockito::mock("POST", GET_OBJECT_ENDPOINT)
-			.match_header(CONTENT_TYPE.as_str(), APPLICATION_OCTET_STREAM)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(get_request.encode_to_vec())
 			.with_status(200)
 			.with_body(mock_response.encode_to_vec())
@@ -73,7 +73,7 @@ mod tests {
 
 		// Register the mock endpoint with the mockito server and provide expected headers.
 		let mock_server = mockito::mock("POST", GET_OBJECT_ENDPOINT)
-			.match_header(CONTENT_TYPE.as_str(), APPLICATION_OCTET_STREAM)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_header("headerkey", "headervalue")
 			.match_body(get_request.encode_to_vec())
 			.with_status(200)
@@ -116,7 +116,7 @@ mod tests {
 
 		// Register the mock endpoint with the mockito server.
 		let mock_server = mockito::mock("POST", PUT_OBJECT_ENDPOINT)
-			.match_header(CONTENT_TYPE.as_str(), APPLICATION_OCTET_STREAM)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
 			.with_body(mock_response.encode_to_vec())
@@ -151,7 +151,7 @@ mod tests {
 
 		// Register the mock endpoint with the mockito server.
 		let mock_server = mockito::mock("POST", DELETE_OBJECT_ENDPOINT)
-			.match_header(CONTENT_TYPE.as_str(), APPLICATION_OCTET_STREAM)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
 			.with_body(mock_response.encode_to_vec())
@@ -192,7 +192,7 @@ mod tests {
 
 		// Register the mock endpoint with the mockito server.
 		let mock_server = mockito::mock("POST", LIST_KEY_VERSIONS_ENDPOINT)
-			.match_header(CONTENT_TYPE.as_str(), APPLICATION_OCTET_STREAM)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
 			.with_body(mock_response.encode_to_vec())

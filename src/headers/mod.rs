@@ -1,10 +1,8 @@
 use async_trait::async_trait;
-use reqwest::header::HeaderMap;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::str::FromStr;
 
 #[cfg(feature = "lnurl-auth")]
 mod lnurl_auth_jwt;
@@ -93,19 +91,4 @@ impl VssHeaderProvider for FixedHeaders {
 	) -> Result<HashMap<String, String>, VssHeaderProviderError> {
 		Ok(self.headers.clone())
 	}
-}
-
-pub(crate) fn get_headermap(
-	headers: &HashMap<String, String>,
-) -> Result<HeaderMap, VssHeaderProviderError> {
-	let mut headermap = HeaderMap::new();
-	for (name, value) in headers {
-		headermap.insert(
-			reqwest::header::HeaderName::from_str(&name)
-				.map_err(|e| VssHeaderProviderError::InvalidData { error: e.to_string() })?,
-			reqwest::header::HeaderValue::from_str(&value)
-				.map_err(|e| VssHeaderProviderError::InvalidData { error: e.to_string() })?,
-		);
-	}
-	Ok(headermap)
 }
