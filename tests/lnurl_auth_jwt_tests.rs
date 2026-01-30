@@ -38,7 +38,7 @@ mod lnurl_auth_jwt_tests {
 		let base_url = format!("http://localhost:{}", addr.port());
 		let parent_key = Xpriv::new_master(Network::Testnet, &[0; 32]).unwrap();
 		let lnurl_auth_jwt =
-			LnurlAuthToJwtProvider::new(parent_key, base_url.clone(), HashMap::new()).unwrap();
+			LnurlAuthToJwtProvider::new(parent_key, base_url.clone(), HashMap::new());
 		{
 			// First request will be provided with an expired JWT token.
 			let k1 = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -56,7 +56,7 @@ mod lnurl_auth_jwt_tests {
 				]))
 				.expect(1)
 				.with_status(200)
-				.with_header(reqwest::header::CONTENT_TYPE.as_str(), APPLICATION_JSON)
+				.with_header("content-type", APPLICATION_JSON)
 				.with_body(lnurl_auth_response(&expired_jwt))
 				.create();
 			assert_eq!(
@@ -87,7 +87,7 @@ mod lnurl_auth_jwt_tests {
 				]))
 				.expect(1)
 				.with_status(200)
-				.with_header(reqwest::header::CONTENT_TYPE.as_str(), APPLICATION_JSON)
+				.with_header("content-type", APPLICATION_JSON)
 				.with_body(lnurl_auth_response(&valid_jwt))
 				.create();
 			assert_eq!(

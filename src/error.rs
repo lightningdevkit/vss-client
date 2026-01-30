@@ -1,7 +1,5 @@
 use crate::types::{ErrorCode, ErrorResponse};
-use prost::bytes::Bytes;
 use prost::{DecodeError, Message};
-use reqwest::StatusCode;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -32,13 +30,13 @@ pub enum VssError {
 
 impl VssError {
 	/// Create new instance of `VssError`
-	pub fn new(status: StatusCode, payload: Bytes) -> VssError {
+	pub fn new(status_code: i32, payload: Vec<u8>) -> VssError {
 		match ErrorResponse::decode(&payload[..]) {
 			Ok(error_response) => VssError::from(error_response),
 			Err(e) => {
 				let message = format!(
 					"Unable to decode ErrorResponse from server, HttpStatusCode: {}, DecodeErr: {}",
-					status, e
+					status_code, e
 				);
 				VssError::InternalError(message)
 			},
@@ -99,8 +97,8 @@ impl From<DecodeError> for VssError {
 	}
 }
 
-impl From<reqwest::Error> for VssError {
-	fn from(err: reqwest::Error) -> Self {
+impl From<bitreq::Error> for VssError {
+	fn from(err: bitreq::Error) -> Self {
 		VssError::InternalError(err.to_string())
 	}
 }

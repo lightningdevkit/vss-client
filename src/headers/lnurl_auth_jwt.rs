@@ -1,4 +1,4 @@
-use crate::headers::{get_headermap, VssHeaderProvider, VssHeaderProviderError};
+use crate::headers::{VssHeaderProvider, VssHeaderProviderError};
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -26,6 +26,8 @@ const SIG_QUERY_PARAM: &str = "sig";
 const KEY_QUERY_PARAM: &str = "key";
 // The authorization header name.
 const AUTHORIZATION: &str = "Authorization";
+// The maximum body size we allow for requests.
+const MAX_RESPONSE_BODY_SIZE: usize = 16 * 1024 * 1024; // 16 KB
 
 #[derive(Debug, Clone)]
 struct JwtToken {
@@ -45,13 +47,14 @@ impl JwtToken {
 	}
 }
 
+const DEFAULT_TIMEOUT_SECS: u64 = 10;
+
 /// Provides a JWT token based on LNURL Auth.
 pub struct LnurlAuthToJwtProvider {
 	engine: Secp256k1<SignOnly>,
 	parent_key: Xpriv,
 	url: String,
 	default_headers: HashMap<String, String>,
-	client: reqwest::Client,
 	cached_jwt_token: RwLock<Option<JwtToken>>,
 }
 
@@ -70,47 +73,46 @@ impl LnurlAuthToJwtProvider {
 	/// with the JWT authorization header for VSS requests.
 	pub fn new(
 		parent_key: Xpriv, url: String, default_headers: HashMap<String, String>,
-	) -> Result<LnurlAuthToJwtProvider, VssHeaderProviderError> {
+	) -> LnurlAuthToJwtProvider {
 		let engine = Secp256k1::signing_only();
-		let default_headermap = get_headermap(&default_headers)?;
-		let client = reqwest::Client::builder()
-			.default_headers(default_headermap)
-			.build()
-			.map_err(VssHeaderProviderError::from)?;
 
-		Ok(LnurlAuthToJwtProvider {
+		LnurlAuthToJwtProvider {
 			engine,
 			parent_key,
 			url,
 			default_headers,
-			client,
 			cached_jwt_token: RwLock::new(None),
-		})
+		}
 	}
 
 	async fn fetch_jwt_token(&self) -> Result<JwtToken, VssHeaderProviderError> {
 		// Fetch the LNURL.
-		let lnurl_str = self
-			.client
-			.get(&self.url)
-			.send()
-			.await
-			.map_err(VssHeaderProviderError::from)?
-			.text()
-			.await
-			.map_err(VssHeaderProviderError::from)?;
+		let lnurl_request = bitreq::get(&self.url)
+			.with_headers(self.default_headers.clone())
+			.with_timeout(DEFAULT_TIMEOUT_SECS)
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
+		let lnurl_response =
+			lnurl_request.send_async().await.map_err(VssHeaderProviderError::from)?;
+		let lnurl_str = String::from_utf8(lnurl_response.into_bytes()).map_err(|e| {
+			VssHeaderProviderError::InvalidData {
+				error: format!("LNURL response is not valid UTF-8: {}", e),
+			}
+		})?;
 
 		// Sign the LNURL and perform the request.
 		let signed_lnurl = sign_lnurl(&self.engine, &self.parent_key, &lnurl_str)?;
-		let lnurl_auth_response: LnurlAuthResponse = self
-			.client
-			.get(&signed_lnurl)
-			.send()
-			.await
-			.map_err(VssHeaderProviderError::from)?
-			.json()
-			.await
-			.map_err(VssHeaderProviderError::from)?;
+		let auth_request = bitreq::get(&signed_lnurl)
+			.with_headers(self.default_headers.clone())
+			.with_timeout(DEFAULT_TIMEOUT_SECS)
+			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
+		let auth_response =
+			auth_request.send_async().await.map_err(VssHeaderProviderError::from)?;
+		let lnurl_auth_response: LnurlAuthResponse =
+			serde_json::from_slice(&auth_response.into_bytes()).map_err(|e| {
+				VssHeaderProviderError::InvalidData {
+					error: format!("Failed to parse LNURL Auth response as JSON: {}", e),
+				}
+			})?;
 
 		let untrusted_token = match lnurl_auth_response {
 			LnurlAuthResponse { token: Some(token), .. } => token,
@@ -128,13 +130,14 @@ impl LnurlAuthToJwtProvider {
 		parse_jwt_token(untrusted_token)
 	}
 
-	async fn get_jwt_token(&self, force_refresh: bool) -> Result<String, VssHeaderProviderError> {
-		let cached_token_str = if force_refresh {
-			None
-		} else {
-			let jwt_token = self.cached_jwt_token.read().unwrap();
-			jwt_token.as_ref().filter(|t| !t.is_expired()).map(|t| t.token_str.clone())
-		};
+	async fn get_jwt_token(&self) -> Result<String, VssHeaderProviderError> {
+		let cached_token_str = self
+			.cached_jwt_token
+			.read()
+			.unwrap()
+			.as_ref()
+			.filter(|t| !t.is_expired())
+			.map(|t| t.token_str.clone());
 		if let Some(token_str) = cached_token_str {
 			Ok(token_str)
 		} else {
@@ -150,7 +153,7 @@ impl VssHeaderProvider for LnurlAuthToJwtProvider {
 	async fn get_headers(
 		&self, _request: &[u8],
 	) -> Result<HashMap<String, String>, VssHeaderProviderError> {
-		let jwt_token = self.get_jwt_token(false).await?;
+		let jwt_token = self.get_jwt_token().await?;
 		let mut headers = self.default_headers.clone();
 		headers.insert(AUTHORIZATION.to_string(), format!("Bearer {}", jwt_token));
 		Ok(headers)
@@ -256,8 +259,8 @@ impl From<bitcoin::bip32::Error> for VssHeaderProviderError {
 	}
 }
 
-impl From<reqwest::Error> for VssHeaderProviderError {
-	fn from(e: reqwest::Error) -> VssHeaderProviderError {
+impl From<bitreq::Error> for VssHeaderProviderError {
+	fn from(e: bitreq::Error) -> VssHeaderProviderError {
 		VssHeaderProviderError::RequestError { error: e.to_string() }
 	}
 }
