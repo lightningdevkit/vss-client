@@ -86,13 +86,14 @@ impl LnurlAuthToJwtProvider {
 	}
 
 	async fn fetch_jwt_token(&self) -> Result<JwtToken, VssHeaderProviderError> {
+		let client = bitreq::Client::new(1);
 		// Fetch the LNURL.
 		let lnurl_request = bitreq::get(&self.url)
 			.with_headers(self.default_headers.clone())
 			.with_timeout(DEFAULT_TIMEOUT_SECS)
 			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
 		let lnurl_response =
-			lnurl_request.send_async().await.map_err(VssHeaderProviderError::from)?;
+			client.send_async(lnurl_request).await.map_err(VssHeaderProviderError::from)?;
 		let lnurl_str = String::from_utf8(lnurl_response.into_bytes()).map_err(|e| {
 			VssHeaderProviderError::InvalidData {
 				error: format!("LNURL response is not valid UTF-8: {}", e),
@@ -106,7 +107,7 @@ impl LnurlAuthToJwtProvider {
 			.with_timeout(DEFAULT_TIMEOUT_SECS)
 			.with_max_body_size(Some(MAX_RESPONSE_BODY_SIZE));
 		let auth_response =
-			auth_request.send_async().await.map_err(VssHeaderProviderError::from)?;
+			client.send_async(auth_request).await.map_err(VssHeaderProviderError::from)?;
 		let lnurl_auth_response: LnurlAuthResponse =
 			serde_json::from_slice(&auth_response.into_bytes()).map_err(|e| {
 				VssHeaderProviderError::InvalidData {
