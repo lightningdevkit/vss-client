@@ -194,11 +194,22 @@ mod tests {
 		assert_eq!(deobfuscated_key, "my_storage_key_v031_compat");
 	}
 
-	use proptest::prelude::*;
+	#[test]
+	fn obfuscate_deobfuscate_randomized() {
+		use rand::Rng;
 
-	proptest! {
-		#[test]
-		fn obfuscate_deobfuscate_proptest(expected_key in "[a-zA-Z0-9_!@#,;:%\\s\\*\\$\\^&\\(\\)\\[\\]\\{\\}\\.]*", obfuscation_master_key in any::<[u8; 32]>()) {
+		let charset =
+			b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_!@#,;:% *$^&()[]{}.\t\n\r";
+		let mut rng = rand::thread_rng();
+
+		for _ in 0..100 {
+			let mut obfuscation_master_key = [0u8; 32];
+			rng.fill(&mut obfuscation_master_key);
+
+			let key_len: usize = rng.gen_range(0..128);
+			let expected_key: String =
+				(0..key_len).map(|_| charset[rng.gen_range(0..charset.len())] as char).collect();
+
 			let key_obfuscator = KeyObfuscator::new(obfuscation_master_key);
 			let obfuscated_key = key_obfuscator.obfuscate(&expected_key);
 			let actual_key = key_obfuscator.deobfuscate(obfuscated_key.as_str()).unwrap();
