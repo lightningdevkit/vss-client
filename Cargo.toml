@@ -15,17 +15,16 @@ build = "build.rs"
 
 [features]
 default = ["lnurl-auth", "sigs-auth"]
-lnurl-auth = ["dep:bitcoin", "dep:url", "dep:serde", "dep:serde_json"]
+lnurl-auth = ["dep:bitcoin", "dep:serde", "dep:serde_json"]
 sigs-auth = ["dep:bitcoin"]
 
 [dependencies]
 prost = "0.11.6"
-bitreq = { version = "0.3", default-features = false, features = ["async-https"] }
+bitreq = { version = "0.3.4", default-features = false, features = ["async-https"] }
 tokio = { version = "1", default-features = false, features = ["time"] }
 rand = "0.8.5"
 async-trait = "0.1.77"
 bitcoin = { version = "0.32.2", default-features = false, features = ["std", "rand-std"], optional = true }
-url = { version = "2.5.0", default-features = false, optional = true, features = ["std"] }
 base64 = { version = "0.22", default-features = false, features = ["std"]}
 serde = { version = "1.0.196", default-features = false, features = ["serde_derive"], optional = true }
 serde_json = { version = "1.0.113", default-features = false, features = ["std"], optional = true }
