@@ -8,11 +8,11 @@ use bitcoin::hashes::sha256;
 use bitcoin::hashes::{Hash, HashEngine, Hmac, HmacEngine};
 use bitcoin::secp256k1::{Message, Secp256k1, SignOnly};
 use bitcoin::PrivateKey;
+use bitreq::Url;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::{Duration, SystemTime};
-use url::Url;
 
 // Derivation index of the hashing private key as defined by LUD-05.
 const HASHING_DERIVATION_INDEX: u32 = 0;
@@ -195,7 +195,7 @@ fn sign_lnurl(
 		error: format!("invalid lnurl: {}", lnurl_str.escape_debug()),
 	};
 	let mut lnurl = Url::parse(lnurl_str).map_err(|_| invalid_lnurl())?;
-	let domain = lnurl.domain().ok_or(invalid_lnurl())?;
+	let domain = lnurl.base_url();
 	let k1_str = lnurl
 		.query_pairs()
 		.find(|(k, _)| k == K1_QUERY_PARAM)
@@ -218,10 +218,11 @@ fn sign_lnurl(
 	let sig = engine.sign_ecdsa(&message, &linking_private_key.inner);
 
 	// Compose LNURL with signature and linking public key.
-	lnurl
-		.query_pairs_mut()
-		.append_pair(SIG_QUERY_PARAM, &sig.serialize_der().to_string())
-		.append_pair(KEY_QUERY_PARAM, &linking_public_key.to_string());
+	let serialized_sig = sig.serialize_der().to_string();
+	let serialized_pubkey = linking_public_key.to_string();
+	let query_params =
+		[(SIG_QUERY_PARAM, serialized_sig.as_str()), (KEY_QUERY_PARAM, serialized_pubkey.as_str())];
+	lnurl.append_query_params(query_params.into_iter());
 	Ok(lnurl.to_string())
 }
 
