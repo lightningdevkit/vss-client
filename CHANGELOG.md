@@ -1,3 +1,17 @@
+# 0.5.0 - Feb 20, 2026
+
+## Features and API updates
+- Add a module to authenticate by proving private key knowledge (#54).
+- Switch from `reqwest` to `bitreq` HTTP client (#56).
+
+## Bug Fixes and Improvements
+- Switch to `bitreq::Url` (#58).
+
+In total, this release features 12 files changed, 218 insertions, 140 deletions from 3 authors in alphabetical order:
+- Elias Rohrer
+- Leo Nash
+- Matt Corallo
+
 # 0.4.1 - Jan 9, 2026
 
 ## Features and API updates
