@@ -21,6 +21,8 @@ mod tests {
 
 	const APPLICATION_OCTET_STREAM: &str = "application/octet-stream";
 	const CONTENT_TYPE: &str = "content-type";
+	const PROTOCOL_VERSION_HEADER: &str = "vss-protocol-version";
+	const PROTOCOL_VERSION: &str = "0";
 
 	const GET_OBJECT_ENDPOINT: &'static str = "/getObject";
 	const PUT_OBJECT_ENDPOINT: &'static str = "/putObjects";
@@ -44,6 +46,7 @@ mod tests {
 			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(get_request.encode_to_vec())
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(mock_response.encode_to_vec())
 			.create();
 
@@ -77,6 +80,7 @@ mod tests {
 			.match_header("headerkey", "headervalue")
 			.match_body(get_request.encode_to_vec())
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(mock_response.encode_to_vec())
 			.create();
 
@@ -119,6 +123,7 @@ mod tests {
 			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(mock_response.encode_to_vec())
 			.create();
 
@@ -154,6 +159,7 @@ mod tests {
 			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(mock_response.encode_to_vec())
 			.create();
 
@@ -195,6 +201,7 @@ mod tests {
 			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
 			.match_body(request.encode_to_vec())
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(mock_response.encode_to_vec())
 			.create();
 
@@ -222,6 +229,7 @@ mod tests {
 		};
 		let mock_server = mockito::mock("POST", GET_OBJECT_ENDPOINT)
 			.with_status(404)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -246,6 +254,7 @@ mod tests {
 		let mock_response = GetObjectResponse { value: None, ..Default::default() };
 		let mock_server = mockito::mock("POST", GET_OBJECT_ENDPOINT)
 			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&mock_response.encode_to_vec())
 			.create();
 
@@ -270,6 +279,7 @@ mod tests {
 		};
 		let mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(400)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -330,6 +340,7 @@ mod tests {
 		};
 		let mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(401)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -412,6 +423,7 @@ mod tests {
 		};
 		let mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(409)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -445,6 +457,7 @@ mod tests {
 		};
 		let mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(500)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -502,6 +515,7 @@ mod tests {
 			ErrorResponse { error_code: 999, message: "UnknownException".to_string() };
 		let mut _mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(999)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&error_response.encode_to_vec())
 			.create();
 
@@ -534,6 +548,7 @@ mod tests {
 		let malformed_error_response = b"malformed";
 		_mock_server = mockito::mock("POST", Matcher::Any)
 			.with_status(409)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
 			.with_body(&malformed_error_response)
 			.create();
 
@@ -546,17 +561,36 @@ mod tests {
 		let list_malformed_err_response = vss_client.list_key_versions(&list_request).await;
 		assert!(matches!(list_malformed_err_response.unwrap_err(), VssError::InternalError { .. }));
 
-		// Requests to endpoints are no longer mocked and will result in network error.
+		// Requests to endpoints are no longer mocked and will result in version mismatch
+		// errors.
 		drop(_mock_server);
 
-		let get_network_err = vss_client.get_object(&get_request).await;
-		assert!(matches!(get_network_err.unwrap_err(), VssError::InternalError { .. }));
+		let get_version_err = vss_client.get_object(&get_request).await;
+		assert!(matches!(
+			get_version_err.unwrap_err(),
+			VssError::VSSVersionMismatchError {
+				version_served: None,
+				version_expected: version
+			} if version == PROTOCOL_VERSION
+		));
 
-		let put_network_err = vss_client.put_object(&put_request).await;
-		assert!(matches!(put_network_err.unwrap_err(), VssError::InternalError { .. }));
+		let put_version_err = vss_client.put_object(&put_request).await;
+		assert!(matches!(
+			put_version_err.unwrap_err(),
+			VssError::VSSVersionMismatchError {
+				version_served: None,
+				version_expected: version
+			} if version == PROTOCOL_VERSION
+		));
 
-		let list_network_err = vss_client.list_key_versions(&list_request).await;
-		assert!(matches!(list_network_err.unwrap_err(), VssError::InternalError { .. }));
+		let list_version_err = vss_client.list_key_versions(&list_request).await;
+		assert!(matches!(
+			list_version_err.unwrap_err(),
+			VssError::VSSVersionMismatchError {
+				version_served: None,
+				version_expected: version
+			} if version == PROTOCOL_VERSION
+		));
 	}
 
 	fn retry_policy() -> impl RetryPolicy<E = VssError> {

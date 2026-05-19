@@ -20,6 +20,8 @@ const CONTENT_TYPE: &str = "content-type";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const MAX_RESPONSE_BODY_SIZE: usize = 1024 * 1024 * 1024; // 1GB
 const DEFAULT_CLIENT_CAPACITY: usize = 10;
+const PROTOCOL_VERSION_HEADER: &str = "vss-protocol-version";
+const PROTOCOL_VERSION: &str = "0";
 
 /// Thin-client to access a hosted instance of Versioned Storage Service (VSS).
 /// The provided [`VssClient`] API is minimalistic and is congruent to the VSS server-side API.
@@ -212,6 +214,16 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		}
 
 		let response = self.client.send_async(http_request).await?;
+		// Return early in case of version mismatch, this issue must be solved first.
+		if response.headers.get(PROTOCOL_VERSION_HEADER).map(String::as_str)
+			!= Some(PROTOCOL_VERSION)
+		{
+			let mut response = response;
+			return Err(VssError::VSSVersionMismatchError {
+				version_served: response.headers.remove(PROTOCOL_VERSION_HEADER),
+				version_expected: String::from(PROTOCOL_VERSION),
+			});
+		}
 
 		let status_code = response.status_code;
 		let payload = response.into_bytes();
