@@ -1,3 +1,16 @@
+# 0.6.0 - Jun 1, 2026
+
+> [!WARNING]
+> This release of `vss-client-ng` requires a corresponding upgrade to `vss-server`. `vss-server`
+> should be upgraded first to at least `0.1.0-alpha.1`, then `vss-client-ng` should be upgraded
+> to this release.
+
+## Features and API updates
+- Assert the VSS protocol version matches (#61).
+
+In total, this release features 7 files changed, 93 insertions, 29 deletions from 1 author:
+- Leo Nash
+
 # 0.5.0 - Feb 20, 2026
 
 ## Features and API updates
