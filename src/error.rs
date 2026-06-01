@@ -26,6 +26,14 @@ pub enum VssError {
 	/// There is an unknown error, it could be a client-side bug, unrecognized error-code, network error
 	/// or something else.
 	InternalError(String),
+
+	/// The VSS server and client speak different versions of the VSS protocol
+	VSSVersionMismatchError {
+		/// The VSS protocol version served
+		version_served: Option<String>,
+		/// The VSS protocol version expected
+		version_expected: String,
+	},
 }
 
 impl VssError {
@@ -61,6 +69,21 @@ impl Display for VssError {
 			},
 			VssError::InternalServerError(message) => {
 				write!(f, "InternalServerError: {}", message)
+			},
+			VssError::VSSVersionMismatchError {
+				version_served: Some(served),
+				version_expected,
+			} => {
+				write!(
+					f,
+					"The VSS server and client speak different versions of the \
+					VSS protocol, the server serves version {}, client expects \
+					{}",
+					served, version_expected,
+				)
+			},
+			VssError::VSSVersionMismatchError { version_served: None, version_expected: _ } => {
+				write!(f, "The server did not set the `vss-protocol-version` header")
 			},
 			VssError::InternalError(message) => {
 				write!(f, "InternalError: {}", message)

@@ -1,9 +1,7 @@
 #[cfg(genproto)]
 extern crate prost_build;
 #[cfg(genproto)]
-use std::io::Write;
-#[cfg(genproto)]
-use std::{env, fs, fs::File, path::Path};
+use std::{env, fs, path::Path};
 
 /// To generate updated proto objects:
 /// 1. Place `vss.proto` file in `src/proto/`
@@ -15,21 +13,7 @@ fn main() {
 
 #[cfg(genproto)]
 fn generate_protos() {
-	download_file(
-				"https://raw.githubusercontent.com/lightningdevkit/vss-server/022ee5e92debb60516438af0a369966495bfe595/proto/vss.proto",
-				"src/proto/vss.proto",
-		).unwrap();
-
 	prost_build::compile_protos(&["src/proto/vss.proto"], &["src/"]).unwrap();
 	let from_path = Path::new(&env::var("OUT_DIR").unwrap()).join("vss.rs");
 	fs::copy(from_path, "src/types.rs").unwrap();
-}
-
-#[cfg(genproto)]
-fn download_file(url: &str, save_to: &str) -> Result<(), Box<dyn std::error::Error>> {
-	let response = bitreq::get(url).send()?;
-	fs::create_dir_all(Path::new(save_to).parent().unwrap())?;
-	let mut out_file = File::create(save_to)?;
-	out_file.write_all(&response.into_bytes())?;
-	Ok(())
 }
