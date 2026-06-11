@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > This release of `vss-client-ng` requires a corresponding upgrade to `vss-server`. `vss-server`
-> should be upgraded first to at least `0.1.0-alpha.1`, then `vss-client-ng` should be upgraded
+> should be upgraded first to at least `0.1.0-alpha.0`, then `vss-client-ng` should be upgraded
 > to this release.
 
 ## Features and API updates
