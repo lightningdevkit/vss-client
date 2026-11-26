@@ -45,12 +45,8 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 
 	/// Constructs a [`VssClient`] from a given [`bitreq::Client`], using `base_url` as the VSS server endpoint.
 	pub fn from_client(base_url: String, client: Client, retry_policy: R) -> Self {
-		Self {
-			base_url,
-			client,
-			retry_policy,
-			header_provider: Arc::new(FixedHeaders::new(HashMap::new())),
-		}
+		let header_provider = Arc::new(FixedHeaders::new(HashMap::new()));
+		Self::from_parts(base_url, client, retry_policy, header_provider)
 	}
 
 	/// Constructs a [`VssClient`] from a given [`bitreq::Client`], using `base_url` as the VSS server endpoint.
@@ -60,7 +56,7 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		base_url: String, client: Client, retry_policy: R,
 		header_provider: Arc<dyn VssHeaderProvider>,
 	) -> Self {
-		Self { base_url, client, retry_policy, header_provider }
+		Self::from_parts(base_url, client, retry_policy, header_provider)
 	}
 
 	/// Constructs a [`VssClient`] using `base_url` as the VSS server endpoint.
@@ -70,6 +66,15 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 		base_url: String, retry_policy: R, header_provider: Arc<dyn VssHeaderProvider>,
 	) -> Self {
 		let client = Client::new(DEFAULT_CLIENT_CAPACITY);
+		Self::from_parts(base_url, client, retry_policy, header_provider)
+	}
+
+	/// Constructs a [`VssClient`] from its parts, trimming trailing slashes from `base_url`.
+	fn from_parts(
+		base_url: String, client: Client, retry_policy: R,
+		header_provider: Arc<dyn VssHeaderProvider>,
+	) -> Self {
+		let base_url = normalize_base_url(base_url);
 		Self { base_url, client, retry_policy, header_provider }
 	}
 
@@ -235,4 +240,13 @@ impl<R: RetryPolicy<E = VssError>> VssClient<R> {
 			Err(VssError::new(status_code, payload))
 		}
 	}
+}
+
+/// Trims trailing slashes from `base_url`.
+///
+/// Request paths are built by appending `/{endpoint}`, so a trailing slash would produce a path like `//getObject`, which is a different path rather than an equivalent spelling of it.
+fn normalize_base_url(mut base_url: String) -> String {
+	let trimmed_len = base_url.trim_end_matches('/').len();
+	base_url.truncate(trimmed_len);
+	base_url
 }
