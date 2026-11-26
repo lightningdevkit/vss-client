@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
 	use async_trait::async_trait;
+	use bitreq::Client;
 	use mockito::{self, Matcher};
 	use prost::Message;
 	use std::collections::HashMap;
@@ -60,6 +61,67 @@ mod tests {
 
 		// Verify server endpoint was called exactly once.
 		mock_server.expect(1).assert();
+	}
+
+	#[tokio::test]
+	async fn test_get_with_trailing_slashes_base_url() {
+		// Repeated slashes must be trimmed
+		let base_url = format!("{}///", mockito::server_url());
+
+		// Set up the mock request/response.
+		let get_request = GetObjectRequest { store_id: "store".to_string(), key: "k1".to_string() };
+		let mock_response = GetObjectResponse {
+			value: Some(KeyValue { key: "k1".to_string(), version: 2, value: b"k1v2".to_vec() }),
+			..Default::default()
+		};
+
+		// Register the mock endpoint with the mockito server.
+		let mock_server = mockito::mock("POST", GET_OBJECT_ENDPOINT)
+			.match_header(CONTENT_TYPE, APPLICATION_OCTET_STREAM)
+			.match_body(get_request.encode_to_vec())
+			.with_status(200)
+			.with_header(PROTOCOL_VERSION_HEADER, PROTOCOL_VERSION)
+			.with_body(mock_response.encode_to_vec())
+			.create();
+
+		// Create a new VssClient with the trailing slashes passed through.
+		let client = VssClient::new(base_url, retry_policy());
+
+		let actual_result = client.get_object(&get_request).await.unwrap();
+
+		let expected_result = &mock_response;
+		assert_eq!(actual_result, *expected_result);
+
+		// Verify server endpoint was called exactly once.
+		mock_server.expect(1).assert();
+	}
+
+	#[test]
+	fn test_all_constructors_trim_trailing_slash_from_base_url() {
+		let base_url = format!("{}/", mockito::server_url());
+		let expected_base_url = mockito::server_url();
+
+		// Every constructor must hand out the normalized base URL, not just `new`.
+		let client = VssClient::new(base_url.clone(), retry_policy());
+		assert_eq!(client.base_url(), expected_base_url.as_str());
+
+		let client = VssClient::from_client(base_url.clone(), Client::new(1), retry_policy());
+		assert_eq!(client.base_url(), expected_base_url.as_str());
+
+		let client = VssClient::from_client_and_headers(
+			base_url.clone(),
+			Client::new(1),
+			retry_policy(),
+			Arc::new(FixedHeaders::new(HashMap::new())),
+		);
+		assert_eq!(client.base_url(), expected_base_url.as_str());
+
+		let client = VssClient::new_with_headers(
+			base_url,
+			retry_policy(),
+			Arc::new(FixedHeaders::new(HashMap::new())),
+		);
+		assert_eq!(client.base_url(), expected_base_url.as_str());
 	}
 
 	#[tokio::test]
